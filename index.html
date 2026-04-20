@@ -238,6 +238,56 @@ body{
   background:#b7aba0;
   opacity:.9;
 }
+
+.section-title{
+  margin:22px 2px 10px;
+  color:var(--muted);
+  font-size:.95rem;
+  font-weight:700;
+  letter-spacing:.04em;
+}
+.discarded-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  margin-top:8px;
+}
+.card.discarded-card{
+  opacity:.72;
+  transform:scale(.965);
+  transform-origin:top center;
+  background:rgba(241,238,233,.95);
+  border-color:#d8d1c8;
+  box-shadow:0 6px 16px rgba(48,36,24,.04);
+}
+.card.discarded-card:hover{
+  transform:scale(.965);
+  box-shadow:0 6px 16px rgba(48,36,24,.04);
+  border-color:#d8d1c8;
+}
+.restore{
+  appearance:none;
+  border:1px solid rgba(118,109,101,.22);
+  background:rgba(255,253,250,.82);
+  color:var(--ink);
+  font:inherit;
+  padding:8px 13px;
+  border-radius:999px;
+  cursor:pointer;
+  transition:transform .12s ease, box-shadow .16s ease;
+}
+.restore:hover{
+  box-shadow:0 6px 16px rgba(48,36,24,.06);
+}
+.restore:active{
+  transform:scale(.96);
+}
+.discarded-empty{
+  color:var(--muted);
+  font-size:.96rem;
+  padding:8px 2px 2px;
+}
+
 @media (max-width:700px){
   .wrapper{padding:16px 12px 88px}
   .topline{
@@ -284,8 +334,12 @@ body{
     <button class="reset-btn" id="resetBtn">全て戻す</button>
   </div>
 
+  <div class="section-title">残っている場面</div>
   <div id="sceneList" class="list"></div>
   <div id="remainingChips" class="remaining-chips"></div>
+
+  <div class="section-title">捨てた場面</div>
+  <div id="discardedList" class="discarded-list"></div>
 </div>
 
 <script>
@@ -432,6 +486,7 @@ const pageTitle = document.getElementById('pageTitle');
 const sceneList = document.getElementById('sceneList');
 const remainingCountHud = document.getElementById('hudCount');
 const remainingChips = document.getElementById('remainingChips');
+const discardedList = document.getElementById('discardedList');
 const resetBtn = document.getElementById('resetBtn');
 const hud = document.getElementById('hud');
 
@@ -484,25 +539,45 @@ function updateHudAndFooter(){
 }
 
 function render(){
-  const kept = keptScenes();
+  const story = currentStory();
+  const discardedSet = currentDiscarded();
+  const allScenes = story.scenes.map((text, i) => ({ number: i + 1, text }));
+  const kept = allScenes.filter(scene => !discardedSet.has(scene.number));
+  const discardedScenes = allScenes.filter(scene => discardedSet.has(scene.number));
+
   updateHudAndFooter();
 
   if(kept.length === 0){
     sceneList.innerHTML = '<div class="empty">場面がありません。上の「全て戻す」で元に戻せます。</div>';
-    return;
+  } else {
+    sceneList.innerHTML = kept.map(scene => `
+      <article class="card" data-number="${scene.number}">
+        <div class="card-top">
+          <div class="card-number">場面${scene.number}</div>
+          <button class="discard" data-number="${scene.number}">捨てる</button>
+        </div>
+        <div class="card-body">
+          <p>${escapeHtml(scene.text[0])}${escapeHtml(scene.text[1])}</p>
+        </div>
+      </article>
+    `).join('');
   }
 
-  sceneList.innerHTML = kept.map(scene => `
-    <article class="card" data-number="${scene.number}">
-      <div class="card-top">
-        <div class="card-number">場面${scene.number}</div>
-        <button class="discard" data-number="${scene.number}">捨てる</button>
-      </div>
-      <div class="card-body">
-        <p>${escapeHtml(scene.text[0])}${escapeHtml(scene.text[1])}</p>
-      </div>
-    </article>
-  `).join('');
+  if(discardedScenes.length === 0){
+    discardedList.innerHTML = '<div class="discarded-empty">まだありません。</div>';
+  } else {
+    discardedList.innerHTML = discardedScenes.map(scene => `
+      <article class="card discarded-card" data-discarded-number="${scene.number}">
+        <div class="card-top">
+          <div class="card-number">場面${scene.number}</div>
+          <button class="restore" data-restore-number="${scene.number}">戻す</button>
+        </div>
+        <div class="card-body">
+          <p>${escapeHtml(scene.text[0])}${escapeHtml(scene.text[1])}</p>
+        </div>
+      </article>
+    `).join('');
+  }
 }
 
 function removeSceneWithAnimation(number){
@@ -518,11 +593,25 @@ function removeSceneWithAnimation(number){
   }, 320);
 }
 
+function restoreScene(number){
+  if(!currentDiscarded().has(number)) return;
+  currentDiscarded().delete(number);
+  pulseHud();
+  render();
+}
+
 sceneList.addEventListener('click', (event) => {
   const btn = event.target.closest('button.discard');
   if(!btn) return;
   const number = Number(btn.dataset.number);
   removeSceneWithAnimation(number);
+});
+
+discardedList.addEventListener('click', (event) => {
+  const btn = event.target.closest('button.restore');
+  if(!btn) return;
+  const number = Number(btn.dataset.restoreNumber);
+  restoreScene(number);
 });
 
 resetBtn.addEventListener('click', () => {
